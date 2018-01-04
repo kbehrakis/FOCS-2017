@@ -1,0 +1,583 @@
+(* 
+
+HOMEWORK 4
+
+Name: Kristen Behrakis
+
+Email: kristen.behrakis@students.olin.edu
+
+Remarks, if any:
+
+*)
+
+
+(*
+ *
+ * Please fill in this file with your solutions and submit it
+ *
+ * The functions below are stubs that you should replace with your
+ * own implementation.
+ *
+ * PLEASE DO NOT CHANGE THE TYPES IN THE STUBS I GIVE YOU. 
+ * Doing so will make it impossible to test your code.
+ *
+ * Always make sure you can #use this file before submitting it.
+ * It has to load without any errors.
+ *
+ *)
+
+
+(* QUESTION 1 *)
+
+(* Returns the number of elements in xs that satisfy predicate p *)
+let count (p:'a -> bool) (xs:'a list):int =
+  (* Filter the list, then get the length *)
+  List.fold_right (fun x res -> (res + 1)) (List.filter p xs) 0
+
+(* Returns the largest positive element in xs, 0 otherwise *)
+let maxp (xs:int list):int =
+  (* Returns the larger of two elements *)
+  let elementOperation element result =
+     if ((element > 0) && (element > result))
+        then element
+     else 
+        result
+  in
+
+  (* fold_right (function) (list) (base case) *)
+   List.fold_right (fun x res -> (elementOperation x res)) xs 0
+
+
+(* Returns results of applying list of functions fs to all elements of xs *)
+let mapf (fs:('a -> 'b) list) (xs:'a list):'b list =
+  (* Function to handle applying the functions to one element *)
+  let applyFunctions functionList element =
+    List.map (fun f -> (f element)) functionList
+  in
+
+  (* For each element of xs, the function will be applied. Then, this result must
+   * be combined with the results for the rest of the xs list using @ for concatenation *)
+  List.fold_right (fun element res -> (applyFunctions fs element) @ res) xs []
+
+
+(* Returns all the ways of pairing up elements of xs and ys *)
+let pairs (xs:'a list) (ys:'b list):('a * 'b) list =
+  (* Function to pair one element of x with all elements of ys *)
+  let oneElement element ys =
+    List.map (fun y -> (element,y)) ys
+  in
+
+  (* For each element in xs, combine it with all elements in ys *)
+  List.fold_right (fun elementXS res -> (oneElement elementXS ys) @ res) xs [] 
+
+
+(* Returns the list obtained by prepending x to every list in xss *)
+let prepend (x:'a) (xss:'a list list):'a list list =
+  (* For each list in xss, prepend x *)
+  List.map (fun list -> x::list) xss
+
+
+(* Returns the list of all prefixes of xs *)
+let prefixes (xs:'a list):'a list list =
+  (* Removes the last element of the list *)
+  let removeLast list =
+    match (List.rev list) with
+    | [] -> []
+    | head::tail -> (List.rev tail)
+  in
+
+  (* Returns the head of a list *)
+  let getHead list = 
+    match list with
+    | [] -> []
+    | head::tail -> head
+  in
+
+  (* If the base case is [xs], then folding with remove the last element of the list each time.
+   * Also, res should be a list of lists. So doing "getHead" will get only one of the lists. *)
+  List.fold_right (fun element res -> ((removeLast (getHead res))::res)) xs [xs]
+
+
+(* Returns all the ways value a can be added to list xs *)
+let inject (x:'a) (xs:'a list):'a list list =
+  (* Creates an offsetting list so that the correct pairings are made *)
+  let createOffSettingList list =
+    List.fold_right (fun element res -> (List.rev element)::res) (prefixes (List.rev list)) []
+  in
+
+  (* Creates the correct list composed of pairings *)
+  let createCorrectList xs =
+    (* List.combine will pair up corresponding elements in each list
+       Prefixes will provide the values needed for the first element in each pair *)
+     List.combine (prefixes xs) (List.rev (createOffSettingList xs))
+  in 
+
+  List.fold_right (fun (element,nextElement) res -> ((element@[x]@nextElement)::res)) (createCorrectList xs) []
+
+
+(* BONUS *)
+let permutations (xs:'a list):'a list list = 
+  failwith "permutations not implemented"
+
+
+
+(*
+ * Type for deterministic Turing machines
+ *
+ * Parameterized by type for states
+ *)
+
+type symbol = string
+
+type 'a tm = { states : 'a list;
+	       input_alphabet : symbol list;
+	       tape_alphabet : symbol list;
+	       left_marker : symbol;
+	       blank : symbol;
+	       delta : ('a * symbol) -> ('a * symbol * int);   (* 0 = Left, 1 = Right *)
+	       start : 'a;
+	       accept : 'a;
+	       reject : 'a }
+
+type 'a config = { state : 'a;
+		   tape: symbol list;
+		   position: int }
+
+
+(* 
+ * Some sample deterministic Turing machines
+ *
+ * asbs is the regular language {a^m b^n | m,n >= 0}
+ * anbn is the non-regular language {a^n b^n | n >= 0}
+ * anbncn is the non-regular language {a^n b^n c^n | n >= 0}
+ *
+ *)
+
+let asbs = { states = ["start"; "q1"; "acc"; "rej"];
+	     input_alphabet = ["a";"b"];
+	     tape_alphabet = ["a";"b";"_";">"];
+	     blank = "_";
+	     left_marker = ">";
+	     start = "start";
+	     accept = "acc";
+	     reject = "rej";
+	     delta = (fun inp -> match inp with
+	                 | ("start", "a") -> ("start", "a", 1)
+     			 | ("start", "b") -> ("q1", "b", 1)
+			 | ("start", ">") -> ("start", ">", 1)
+			 | ("start", "_") -> ("acc", "_", 1)
+			 | ("q1", "b") -> ("q1", "b", 1)
+			 | ("q1", "_") -> ("acc", "_", 1)
+			 | ("acc", "a") -> ("acc", "a", 1)
+			 | ("acc", "b") -> ("acc", "b", 1)
+			 | ("acc", ">") -> ("acc", ">", 1)
+			 | ("acc", "_") -> ("acc", "_", 1)
+			 | (_,c) -> ("rej",c,1))}
+
+let anbn = { states = ["start"; "q1"; "q2"; "q3"; "q4"; "acc"; "rej"];
+	     input_alphabet = ["a";"b"];
+	     tape_alphabet = ["a";"b";"X";"/";"|"];
+	     blank = "/";
+	     left_marker = "|";
+	     start = "start";
+	     accept = "acc";
+	     reject = "rej";
+	     delta = (fun inp -> match inp with
+	                 | ("start", "a") -> ("start", "a", 1)
+     			 | ("start", "b") -> ("q1", "b", 1)
+			 | ("start", "|") -> ("start", "|", 1)
+			 | ("start", "/") -> ("q2", "/", 1)
+			 | ("q1", "b") -> ("q1", "b", 1)
+			 | ("q1", "/") -> ("q2", "/", 1)
+			 | ("q2", "|") -> ("q3", "|", 1)
+			 | ("q2", "a") -> ("q2", "a", 0)
+			 | ("q2", "b") -> ("q2", "b", 0)
+			 | ("q2", "X") -> ("q2", "X", 0)
+			 | ("q2", "/") -> ("q2", "/", 0)
+			 | ("q3", "X") -> ("q3", "X", 1)
+			 | ("q3", "/") -> ("acc", "/", 1)
+			 | ("q3", "a") -> ("q4", "X", 1)
+			 | ("q4", "a") -> ("q4", "a", 1)
+			 | ("q4", "X") -> ("q4", "X", 1)
+			 | ("q4", "b") -> ("q2", "X", 1)
+			 | ("acc", "a") -> ("acc", "a", 1)
+			 | ("acc", "b") -> ("acc", "b", 1)
+			 | ("acc", "|") -> ("acc", "|", 1)
+			 | ("acc", "X") -> ("acc", "X", 1)
+			 | ("acc", "/") -> ("acc", "/", 1)
+			 | (_,c) -> ("rej",c,1))}
+
+
+let anbncn = { states = ["start";"q1";"q2";"q3";"q4";"q5";"q6";"acc";"rej"];
+	       input_alphabet = ["a";"b";"c"];
+	       tape_alphabet = ["a";"b";"c";"X";"_";">"];
+	       blank = "_";
+	       left_marker = ">";
+	       start = "start";
+	       accept = "acc";
+	       reject = "rej";
+	       delta = (fun inp -> match inp with
+	                | ("start", "a") -> ("start", "a", 1)
+     			| ("start", "b") -> ("q1", "b", 1)
+			| ("start", "c") -> ("q6", "c", 1)
+			| ("start", ">") -> ("start", ">", 1)
+			| ("start", "_") -> ("q2", "_", 1)
+			| ("q1", "b") -> ("q1", "b", 1)
+			| ("q1", "c") -> ("q6", "c", 1)
+			| ("q1", "_") -> ("q2", "_", 1)
+			| ("q2", ">") -> ("q3", ">", 1)
+			| ("q2", "a") -> ("q2", "a", 0)
+			| ("q2", "b") -> ("q2", "b", 0)
+			| ("q2", "c") -> ("q2", "c", 0)
+			| ("q2", "_") -> ("q2", "_", 0)
+			| ("q2", "X") -> ("q2", "X", 0)
+			| ("q3", "X") -> ("q3", "X", 1)
+			| ("q3", "_") -> ("acc", "_", 1)
+			| ("q3", "a") -> ("q4", "X", 1)
+			| ("q4", "a") -> ("q4", "a", 1)
+			| ("q4", "X") -> ("q4", "X", 1)
+			| ("q4", "b") -> ("q5", "X", 1)
+			| ("q5", "b") -> ("q5", "b", 1)
+			| ("q5", "X") -> ("q5", "X", 1)
+			| ("q5", "c") -> ("q2", "X", 1)
+			| ("q6", "c") -> ("q6", "c", 1)
+			| ("q6", "_") -> ("q2", "_", 1)
+		        | ("acc", "a") -> ("acc", "a", 1)
+		        | ("acc", "b") -> ("acc", "b", 1)
+		        | ("acc", "c") -> ("acc", "c", 1)
+		        | ("acc", ">") -> ("acc", ">", 1)
+		        | ("acc", "X") -> ("acc", "X", 1)
+		        | ("acc", "_") -> ("acc", "_", 1)
+			| (_,c) -> ("rej", c,1))}
+
+
+      
+(*
+ * Helper functions
+ *
+ *   explode : string -> string list
+ *      returns the list of symbols making up a string
+ *
+ *   printConfig: string tm -> string config -> 'a -> 'a
+ *      print a configuration (including newline) to standard output
+ *      and return a value
+ * 
+ *)
+
+let explode (str:string):symbol list = 
+  let rec acc index result = 
+    if (index<0) then result
+    else acc (index-1) ((String.sub str index 1)::result) in
+  acc (String.length(str)-1) []
+
+
+let printConfig (m:string tm) (c:string config) (value:'a):'a = 
+    let mw = List.fold_right (fun a r -> max (String.length a) r) m.states 0 in
+    let padding = max 0 (c.position + 1 - List.length c.tape) in
+    let rec mkBlank k = match k with 0 -> [] | _ -> m.blank :: (mkBlank (k -1)) in
+    let tape' = c.tape@(mkBlank padding) in
+    let _ = print_string (String.sub (c.state^(String.make mw ' ')) 0 mw) in
+    let _ = print_string "  "  in
+    let _ = List.iteri (fun i sym -> 
+                          if (i=c.position) then Printf.printf "[%s]" sym
+			  else Printf.printf " %s " sym) tape'  in
+    let _ = print_newline ()  in
+    value
+
+
+
+(* QUESTION 2 *)
+
+(* Returns the starting configuration for Turing machine m given w as input string *)
+let startConfig (m:'a tm) (w:string):'a config =
+  (* Starting configuration: state = start, tape = (left marker)::(string w as a list), position = 0 *)
+  {state = m.start; tape = (m.left_marker)::(explode w); position = 0}
+
+
+(* Returns true iff c is an accepting configuration for machine m *)
+let acceptConfig (m:'a tm) (c:'a config):bool = 
+  m.accept = c.state
+
+
+(* Returns true iff c is a rejecting configuration for machine m *)
+let rejectConfig (m:'a tm) (c:'a config):bool = 
+  m.reject = c.state
+
+
+(* Replace the nth element in xs with x *)
+let rec replace_nth (xs:'a list) (n:int) (x:'a):'a list =
+  match xs with
+   [] -> []
+   | head::tail -> if (n=0)
+                     then x::tail
+                   else
+                     head::(replace_nth tail (n-1) x)
+ 
+
+(* Helper function: get the nth element of a list *)
+let rec get_nth xs n =
+  match xs with
+   [] -> failwith "Index out of bounds"
+   | head::tail -> if (n=0)
+                     then head
+                   else
+                     (get_nth tail (n-1))  
+
+
+(* Returns the configuration obtained by one step of Turing machine m from config. c *)
+let step (m:'a tm) (c:'a config):'a config = 
+  (* On the tape, get the nth value where n = position. 
+     Go through the deltas and find the corresponding transition:
+           - (c.state, nthElement)
+     Update the config with the new state
+     Replace the nth value appropriately, if it's the last element, need to add a blank
+     Update the position -> 1 = +1 (move right), 0 = -1 (move left) *)
+
+    (* newValue is the value that will indicate the transition route *)
+    let newValue = (get_nth c.tape c.position) in
+
+    (* Get the correct transition from the input configuration *)
+    let (newState, charToWrite, direction) = m.delta (c.state, newValue) in
+
+    let updatedTape = (replace_nth c.tape c.position charToWrite) in
+
+    (* If the tapehead is moving to the right (i.e. direction = 1) *)
+    if (direction = 1)
+      then
+          (* If it's the last element of the tape *)
+           if ((c.position + 1) >= (List.length c.tape))
+             then {state = newState; tape = updatedTape@[m.blank]; position = (c.position + 1)}
+           else
+             {state = newState; tape = updatedTape; position = (c.position + 1)}
+
+    (* If the tapehead is moving to the left *)
+    else if (direction = 0)
+      then {state = newState; tape = updatedTape; position = (c.position - 1)}
+ 
+    (* If tapehead isn't moving left or right *)
+    else
+      failwith "Invalid direction"
+
+
+(* Helper function: prints all configurations during run *)
+let rec recursiveRun m c = 
+  (* Check if accepting or rejecting configuration *)
+  if (printConfig m c (acceptConfig m c))
+    then true
+  else if (rejectConfig m c)
+    then false
+  else 
+    recursiveRun m (step m c)
+
+(* Returns true if m accepts strign w, fasle if it rejects. Also, shoudl print sequence of
+   configurations that m goes through *)
+let run (m:string tm) (w:string):bool = 
+  recursiveRun m (startConfig m w)
+
+
+
+(* QUESTION 3 *)
+
+let dummyTM = { states = ["x"];
+		input_alphabet = ["x"];
+		tape_alphabet = ["x"];
+		blank = "x";
+		left_marker = "x";
+		start = "x";
+		accept = "x";
+		reject = "x";
+		delta = (fun (x,y) -> (x,y,0))}
+    
+
+(* (c^n)(d^2n) *)
+let tm_q3_a : string tm =  { states = ["start";"q1";"q2";"q3";"q4";"q5";"acc";"rej"];
+                             input_alphabet = ["c";"d"];
+	               	     tape_alphabet = ["c";"d";"X";"Y";">";"_"];
+		             blank = "_";
+		             left_marker = ">";
+		             start = "start";
+		             accept = "acc";
+	 	             reject = "rej";
+                             delta = (fun inp -> match inp with
+	     			    |("start", ">") -> ("start", ">", 1)
+	     			    |("start", "_") -> ("acc", "_", 0)
+                                    |("start","c") -> ("q1","X",1)
+                                    |("q1","c") -> ("q1","c",1)
+			            |("q1","Y") -> ("q1","Y",1)
+                                    |("q1","d") -> ("q3","Y",1)
+                                    |("q3","d") -> ("q4","Y",0)
+                                    |("q4","c") -> ("q4","c",0)
+                                    |("q4","Y") -> ("q4","Y",0)
+                                    |("q4","X") -> ("start","X",1)
+                                    |("start","Y") -> ("q5","Y",1)
+                                    |("q5","Y") -> ("q5","Y",1)
+                                    |("q5","_") -> ("acc","_",0)
+ 			            |(_,c) -> ("rej", c,1)  ) }
+
+let tm_q3_b : string tm = { states = ["start";"q1";"q2";"q3";"q4";"q5";"q6";"q7";"q8";"q9";"acc";"rej"];
+                             input_alphabet = ["c";"d"];
+	               	     tape_alphabet = ["c";"d";"X";"Y";">";"_"];
+		             blank = "_";
+		             left_marker = ">";
+		             start = "start";
+		             accept = "acc";
+	 	             reject = "rej";
+                             delta = (fun inp -> match inp with
+	                          
+	     			    |("start", ">") -> ("start", ">", 1)
+	     			    |("start", "c") -> ("q1", "X", 1)
+				    |("start", "d") -> ("q1", "Y", 1)
+                                    |("q1","d") -> ("q1","d",1)
+			            |("q1","X") -> ("q1","X",1)
+                                    |("q1","Y") -> ("q1","Y",1)
+                                    |("q1","c") -> ("q1","c",1)
+                                    |("q1","_") -> ("q2","_",0)
+                                    |("q2","X") -> ("q2","X",0)
+				    |("q2","Y") -> ("q2","Y",0)
+                                    |("q2","d") -> ("q3","d",0)
+			            |("q3","Y") -> ("q5","Y",0) 
+                                    |("q5","X") -> ("q5","X",0)
+                                    |("q5","Y") -> ("q5","Y",0)
+                                    |("q5",">") -> ("acc",">",0)
+
+				    |("q3","c") -> ("q6","c",1)
+                                    |("q3","d") -> ("q6","d",1)	    
+                                    |("q6","d") -> ("q7","Y",0)
+                                    |("q7","c") -> ("q7","c",0)
+                                    |("q7","d") -> ("q7","d",0)
+                                    |("q7","X") -> ("start","X",1)
+                                    |("q7","Y") -> ("start","Y",1)
+
+				    |("q2","c") -> ("q8","c",0)	    
+                                    |("q8","X") -> ("q5","X",0)
+                               (*     |("q7","c") -> ("q7","c",0) *)
+                                    |("q8","c") -> ("q9","c",1)
+                                    |("q8","d") -> ("q9","d",1)
+                                    |("q9","c") -> ("q7","X",0)
+ 			            |(_,c) -> ("rej", c,1)  ) }
+
+
+
+(* QUESTION 4 *)
+
+
+let tm_q4_not : string tm =  { states = ["start";"q1";"q2";"q3";"q4";"q5";"q6";"q7";"acc";"rej"];
+                             input_alphabet = ["0";"1";"#"];
+	               	     tape_alphabet = ["0";"1";"#";"X";"Y";">";"_"];
+		             blank = "_";
+		             left_marker = ">";
+		             start = "start";
+		             accept = "acc";
+	 	             reject = "rej";
+                             delta = (fun inp -> match inp with
+	     
+	     			    |("start", ">") -> ("start", ">", 1)
+
+	                         (* Starting with a 0 *)
+	     			    |("start", "0") -> ("q1", "X", 1)
+                                    |("q1","1") -> ("q1","1",1)
+			            |("q1","0") -> ("q1","0",1)
+                                    |("q1","#") -> ("q2","#",1)
+                                    |("q2","Y") -> ("q2","Y",1)
+                                    |("q2","1") -> ("q3","Y",0)
+                                    |("q3","#") -> ("q3","#",0)
+                                    |("q3","Y") -> ("q3","Y",0)
+				    |("q3","1") -> ("q3","1",0)
+                                    |("q3","0") -> ("q3","0",0)
+                                    |("q3","X") -> ("start","X",1)
+                                    |("start","Y") -> ("q5","Y",1)
+
+		                  (* Starting with a 1 *)
+                                    |("start","1") -> ("q4","X",1)
+                                    |("q4","1") -> ("q4","1",1)
+			            |("q4","0") -> ("q4","0",1)
+                                    |("q4","#") -> ("q5","#",1)
+                                    |("q5","Y") -> ("q5","Y",1)
+                                    |("q5","0") -> ("q6","Y",0)
+                                    |("q6","#") -> ("q6","#",0)
+                                    |("q6","Y") -> ("q6","Y",0)
+				    |("q6","1") -> ("q6","1",0)
+                                    |("q6","0") -> ("q6","0",0)
+                                    |("q6","X") -> ("start","X",1)
+				    
+                                    |("start","#") -> ("q7","#",1)
+                                    |("q7","Y") -> ("q7","Y",1)
+                                    |("q7","_") -> ("acc","_",0)
+ 			            |(_,c) -> ("rej", c,1)  ) }
+
+let tm_q4_and : string tm = { states = ["start";"q1";"q2";"q3";"q4";"q5";"q6";"q7";"q8";"q9";"q10";"q11";"q13";"q14";"acc";"rej"];
+                             input_alphabet = ["0";"1";"#"];
+	               	     tape_alphabet = ["0";"1";"#";"X";"Y";"Z";">";"_"];
+		             blank = "_";
+		             left_marker = ">";
+		             start = "start";
+		             accept = "acc";
+	 	             reject = "rej";
+                             delta = (fun inp -> match inp with
+	     
+	     			    |("start", ">") -> ("start", ">", 1)
+ 
+	                          (* Starting with a 0 *)
+	     			    |("start", "0") -> ("q9", "X", 1)
+                                    |("q9","0") -> ("q9","0",1)			       
+                                    |("q9","1") -> ("q9","1",1)
+                                    |("q9","#") -> ("q10","#",1)
+                                    |("q10","0") -> ("q11","Y",1)
+                                    |("q10","1") -> ("q11","Y",1)
+                                    |("q10","Y") -> ("q10","Y",1)
+                                    |("q11","1") -> ("q11","1",1)
+                                    |("q11","0") -> ("q11","0",1)
+				    |("q11","#") -> ("q12","#",1)
+                                    |("q12","0") -> ("q13","Z",0)
+				    |("q12","Z") -> ("q12","Z",1)  (****)
+                                    |("q13","#") -> ("q13","#",0)
+                                    |("q13","0") -> ("q13","0",0)
+                                    |("q13","1") -> ("q13","1",0)
+                                    |("q13","Z") -> ("q13","Z",0)
+                                    |("q13","Y") -> ("q13","Y",0)
+                                    |("q13","X") -> ("start","X",1)
+				    
+		                  (* Starting with a 1 *)
+                                    |("start","1") -> ("q1","X",1)
+                                    |("q1","1") -> ("q1","1",1)
+			            |("q1","0") -> ("q1","0",1)
+                                    |("q1","#") -> ("q2","#",1)
+                                                      
+                                    (* 1&0 *)
+                                    |("q2","Y") -> ("q2","Y",1)
+                                    |("q2","0") -> ("q3","Y",1)
+                                    |("q3","1") -> ("q3","1",1)
+                                    |("q3","0") -> ("q3","0",1)
+                                    |("q3","#") -> ("q4","#",1)
+				    |("q4","0") -> ("q5","Z",0)
+				    |("q4","Z") -> ("q4","Z",1)
+                                    |("q5","#") -> ("q5","#",0)
+                                    |("q5","0") -> ("q5","0",0)
+                                    |("q5","1") -> ("q5","1",0)
+                                    |("q5","Z") -> ("q5","Z",0)
+                                    |("q5","Y") -> ("q5","Y",0)
+				    |("q5","X") -> ("start","X",1)
+
+		                    (* 1&1 *)
+                                    |("q2","1") -> ("q6","Y",1)
+                                    |("q6","1") -> ("q6","1",1)
+                                    |("q6","0") -> ("q6","0",1)
+                                    |("q6","#") -> ("q7","#",1)
+				    |("q7","1") -> ("q8","Z",0)
+				    |("q7","Z") -> ("q7","Z",1)
+                                    |("q8","#") -> ("q8","#",0)
+                                    |("q8","0") -> ("q8","0",0)
+                                    |("q8","1") -> ("q8","1",0)
+                                    |("q8","Z") -> ("q8","Z",0)
+                                    |("q8","Y") -> ("q8","Y",0)
+				    |("q8","X") -> ("start","X",1)
+		    
+				    
+                                    |("start","#") -> ("q14","#",1)
+                                    |("q14","Y") -> ("q14","Y",1)
+                                    |("q14","#") -> ("q14","#",1)
+                                    |("q14","Z") -> ("q14","Z",1)
+				    
+                                    |("q14","_") -> ("acc","_",0)
+ 			            |(_,c) -> ("rej", c,1)  ) }
+

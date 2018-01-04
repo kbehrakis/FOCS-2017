@@ -1,0 +1,248 @@
+(* 
+
+HOMEWORK 2
+
+Name: Kristen Behrakis
+
+Email: kristen.behrakis@students.olin.edu
+
+Remarks, if any:
+  - regexp_d works but takes a bit of time to run, ~30 seconds
+  - went to ninja hours for some help on starL
+
+*)
+
+
+(*
+ *
+ * Please fill in this file with your solutions and submit it
+ *
+ * The functions below are stubs that you should replace with your
+ * own implementation.
+ *
+ * Always make sure you can #use this file before submitting it.
+ * It has to load without any errors.
+ *
+ *)
+
+
+
+
+
+   (* Q1: Set functions *)
+
+(* Returns true is element is in the set, false otherwise*)
+let rec inS e xs =
+  match xs with
+    [] -> false    (* Case with an empty list *)
+    | firstElement::rest ->
+     (* Check if entered element equals an element in list *)
+           (firstElement = e)||(inS e rest)
+
+
+(* Returns true if xs is a subset of ys, false otherwise *)
+let rec subsetS xs ys = 
+    match xs with
+    [] -> true    (* Case with an empty list *)
+    | firstElement::rest ->
+     (* Check if each element of xs is in ys *)
+           (inS firstElement ys)&&(subsetS rest ys)
+
+
+(* Returns true if sets xs and ys are equal *)
+let rec equalS xs ys =
+  (* To be equal, all elements in x need to be in y and vice versa *)
+   (subsetS xs ys) && (subsetS ys xs)
+
+let rec removeDuplicates xs =
+    match xs with
+      [] -> []
+      | head::tail -> 
+             if (inS head tail)  (* If first element is repeated later on *)
+               then (removeDuplicates tail)
+             else
+               head::(removeDuplicates tail)
+
+
+(* Returns the union of xs and ys *)
+let rec unionS xs ys =
+  let rec helperUnion xs ys =
+    match xs with
+    [] -> ys          (* Once all elements of xs are added, then add ys *)
+    | firstElementXS::restXS -> firstElementXS::(unionS restXS ys)
+  in 
+
+  (removeDuplicates (helperUnion xs ys))
+
+(* Returns the intersection of xs and ys *)
+let rec interS xs ys = 
+    match xs with
+    [] -> []  
+    | firstElementXS::restXS ->
+       (* See which elements of xs are in ys, then add to the new set *)
+       if (inS firstElementXS ys)
+         then firstElementXS::(interS restXS ys)
+       else 
+         (interS restXS ys)
+
+(* Returns the number of distinct elements in xs *)
+let rec sizeS xs =
+  (* Remove duplicates then get length *)
+    match (removeDuplicates xs) with
+      [] -> 0
+      | head::tail -> 1 + (sizeS tail)
+
+
+
+   (* Q2: Language functions *)
+
+(* Returns the language of all strings in xs of length at most n *)
+let rec atMost n xs = 
+  match xs with
+      [] -> []
+      | head::tail -> 
+         if ((String.length head) <= n)
+           then head::(atMost n tail)
+         else
+           (atMost n tail)
+
+
+(* Returns the language of all strings in either languages of length at most n *)
+let rec unionL n xs ys = 
+  (* Get atMost of each language, then take union *)
+  atMost n (unionS xs ys)
+
+
+(* Returns the language of all strings of length at most n obtained by concatenating strings from each language *)
+let rec concatL n xs ys =
+  (* Concat each element of x with element in y, want to basically do FOIL math method but with concat not multiply *)
+ match xs with
+    [] -> []
+    | firstElementXS::restXS ->
+
+ match ys with
+    [] -> []
+    | firstElementYS::restYS -> (unionL n ((firstElementXS^firstElementYS)::(concatL n xs restYS)) (concatL n restXS ys))
+
+
+let rec starL n xs =
+  if(n=0 || xs=[]) (* Counting down from n, so eventually it will be 0*)
+    then [""]
+  else             (* atMost 2 + atMost 1 = atMost 3 *)
+    (unionL n (""::xs) (concatL n xs (starL (n-1) xs)))
+
+
+
+   (* Q3: regular expressions *)
+
+type re = 
+    Empty 
+  | Unit 
+  | Letter of string 
+  | Plus of re * re 
+  | Times of re * re 
+  | Star of re
+
+let lang n s = 
+  let fromChar c = String.make 1 c in
+  let explode s = 
+    let rec loop i result = 
+      if i < 0 then result
+      else loop (i-1) (s.[i]::result) in
+    loop (String.length s - 1) []  in
+  let isalpha = function 'A'..'Z'|'a'..'z' -> true | _ -> false in
+  let expect c cs = 
+    match cs with 
+      f::cs when f = c -> Some cs
+    | _ -> None in
+  let expect_alpha cs = 
+    match cs with
+      f::cs when isalpha f -> Some (f,cs)
+    | _ -> None  in
+  let rec parse_R cs = 
+    match parse_R1 cs with
+      None -> None
+    | Some (r1,cs) -> 
+        (match expect '+' cs with
+           None -> Some (r1,cs)
+         | Some cs -> 
+             (match parse_R cs with
+                None -> None
+              | Some (r2,cs) -> Some (Plus(r1,r2),cs)))
+  and parse_R1 cs = 
+    match parse_R2 cs with
+      None -> None
+    | Some (r1,cs) -> 
+        (match parse_R1 cs with
+           None -> Some (r1,cs)
+         | Some (r2,cs) -> Some (Times(r1,r2),cs))  
+  and parse_R2 cs = 
+    match parse_R3 cs with
+      None -> None
+    | Some (r1,cs) -> 
+        (match expect '*' cs with
+           None -> Some (r1,cs)
+         | Some cs -> Some (Star(r1),cs))
+  and parse_R3 cs = 
+    match expect_alpha cs with
+      Some (a,cs) -> Some (Letter(fromChar(a)),cs)
+    | None -> 
+        (match expect '1' cs with
+           Some cs -> Some (Unit, cs)
+         | None -> 
+             (match expect '0' cs with
+                Some cs -> Some (Empty,cs)
+              | None -> parse_parens cs))
+  and parse_parens cs = 
+    match expect '(' cs with
+      None -> None
+    | Some cs -> 
+        (match parse_R cs with
+           None -> None
+         | Some (r,cs) -> 
+             (match expect ')' cs with
+                None -> None
+              | Some cs -> Some (r,cs)))  in
+  let parse s = 
+    let cs = explode s in
+    match parse_R cs with
+      Some (re,[]) -> re
+    | _ -> failwith ("Cannot parse "^s)  in
+  let rec eval re = 
+    match re with
+      Empty -> []
+    | Unit -> [""]
+    | Letter (a) -> [a]
+    | Plus (r1,r2) -> unionL n (eval r1) (eval r2)
+    | Times (r1,r2) -> concatL n (eval r1) (eval r2)
+    | Star r -> starL n (eval r)  in
+  eval (parse s)
+
+let show l = 
+  let rec loop l seen = 
+    match l with
+    | [] -> ()
+    | s::rest -> if List.mem s seen 
+                    then loop rest seen 
+                  else (match s with 
+		        | "" -> (print_string "  <empty string>\n"; 
+				 loop rest (""::seen))
+			| s -> (print_string ("  "^s^"\n"); 
+				loop rest (s::seen))) in
+  loop l []
+
+
+(* (d+e) gets all elements made up of one, (d+e) gets elements made up of of two, etc *)
+(* Only want length 4, so need to concat until elements have 4 characters *)
+let regexp_a = "(d+e)(d+e)(d+e)(d+e)"
+
+(* (d+e)* gets all combinations of d and e *)
+let regexp_b = "(dd+ee+de+ed)*d+(dd+ee+de+ed)*e"
+
+let regexp_c = "e*de*de*"
+
+(* Works but takes a bit of time to run, ~30 seconds*)
+let regexp_d = "(e+de*d)*de*"
+
+let regexp_e = "e*e+e*deee*+deee*deee*"
+

@@ -1,0 +1,243 @@
+(* 
+
+HOMEWORK 9
+
+Name: Kristen Behrakis
+
+Email: kristen.behrakis@students.olin.edu
+
+Remarks, if any:
+
+*)
+
+
+
+(*
+ *
+ * Please fill in this file with your solutions and submit it
+ *
+ * The functions below are stubs that you should replace with your
+ * own implementation.
+ *
+ * PLEASE DO NOT CHANGE THE TYPES IN THE STUBS I GIVE YOU. 
+ * Doing so risks make it impossible to test your code.
+ *
+ * Always make sure you can #use this file before submitting it.
+ * Do that in a _fresh_ OCaml shell 
+ * It has to load without any errors.
+ *
+ *)
+
+
+
+
+(* 
+ * The internal implementation for streams 
+ *
+ * DO NOT MODIFY THIS CODE, INCLUDING ADDING FUNCTIONS 
+ *
+ *)
+
+module AbsStream :
+  sig
+      type 'a stream 
+      val cst : 'a -> 'a stream
+      val fby : 'a stream -> (unit -> 'a stream) -> 'a stream
+      val map : ('a -> 'b) -> 'a stream -> 'b stream
+      val map2 : ('a -> 'b -> 'c) -> 'a stream -> 'b stream -> 'c stream
+      val filter : ('a -> 'b -> bool) -> 'a stream -> 'b stream -> 'b stream
+      val split : 'a stream -> ('a stream * 'a stream)
+      val print_stream : ('a -> string) -> int -> 'a stream -> unit
+    end = 
+  struct
+    type 'a stream = R of 'a * (unit -> 'a stream)
+    let memoize f = 
+      let memoized = ref None in
+      let new_f () = 
+	match !memoized with
+	| None -> let result = f () in memoized := Some result; result
+	| Some v -> v   in
+      new_f
+    let mk h t = R (h, memoize t) 
+    let unmk1 s = let R (h,t) = s in h
+    let unmk2 s = let R (h,t) = s in t ()
+    let rec cst v = mk v (fun () -> cst v)
+    let fby s1 ps2 = mk (unmk1 s1) ps2
+    let rec map f s = mk (f (unmk1 s)) (fun () -> map f (unmk2 s))
+    let rec map2 f s1 s2 = mk (f (unmk1 s1) (unmk1 s2)) (fun () -> map2 f (unmk2 s1) (unmk2 s2))
+    let rec filter p ctl s = if p (unmk1 ctl) (unmk1 s) then mk (unmk1 s) (fun () -> filter p (unmk2 ctl) (unmk2 s)) else filter p (unmk2 ctl) (unmk2 s)
+    let split s = (cst (unmk1 s), unmk2 s)
+    let rec zip s1 s2 = mk (unmk1 s1, unmk1 s2) (fun () -> zip (unmk2 s1) (unmk2 s2))
+    let rec prefix n s = if n > 0 then (unmk1 s)::(prefix (n-1) (unmk2 s)) else []
+    let print_stream tr n s =
+      let rec loop n s = 
+        if n > 0 then (print_string ((tr (unmk1 s))^" "); loop (n-1) (unmk2 s))
+        else (print_string "...>\n") in
+      print_string "< " ; loop n s
+  end
+
+
+
+(*
+ * 
+ * THESE ARE THE FUNCTIONS YOU GET TO USE
+ *
+ *)
+
+type 'a stream = 'a AbsStream.stream
+let cst : 'a -> 'a stream = AbsStream.cst
+let fby : 'a stream -> (unit -> 'a stream) -> 'a stream = AbsStream.fby
+let map : ('a -> 'b) -> 'a stream -> 'b stream = AbsStream.map
+let map2 : ('a -> 'b -> 'c) -> 'a stream -> 'b stream -> 'c stream = AbsStream.map2
+let filter : ('a -> 'b -> bool) -> 'a stream -> 'b stream -> 'b stream = AbsStream.filter
+let split : 'a stream -> ('a stream * 'a stream) = AbsStream.split
+let print_stream : ('a -> string) -> int -> 'a stream -> unit = AbsStream.print_stream
+
+
+
+
+(* 
+ *  Some helper functions to print a stream:
+ *
+ *  They are simple wrapper around print_stream
+ *
+ *)
+
+let pri s = print_stream string_of_int 20 s
+let prip s = print_stream (fun (x,y) -> "("^(string_of_int x)^","^(string_of_int y)^")") 20 s
+let prs s = print_stream (fun x -> x) 20 s
+let prf s = print_stream string_of_float 20 s
+
+
+(* Some functions we saw in class *)
+
+let rec gen_nats () = fby (cst 0)
+                        (fun () -> (map (fun x -> x+1) (gen_nats ())))
+let nats = gen_nats()
+
+let evens = map (fun x -> 2*x) nats
+let odds = map (fun x -> x+1) evens
+
+
+(* some test streams *)
+
+let s_ampl =
+  let transf (v,(d,m)) =
+    if d = 1 && v = m then (v-1,(-1,m))
+    else if d = -1 && v = -m then (v+1,(1,m+1))
+    else if d = 1 then (v+1,(1,m))
+    else (v-1,(-1,m))  in
+  let rec f () = fby (map2 (fun x y -> (x,y)) (cst 0) (cst (1,1)))
+                     (fun () -> map transf (f ())) in
+  map (fun (x,y) -> x) (f ())
+
+let s_as = map (fun n -> "a"^(string_of_int n)) nats
+
+
+(* 
+ * QUESTION 1 
+ * 
+ *)
+
+(* Multiplies every element of stream by n *)
+let scale (n:int) (s:int stream):int stream = 
+  (map (fun element -> n*element) s)
+
+
+(* Multiplies the corresponding elements of s1 and s2 together *)
+let mult (s1:int stream) (s2:int stream):int stream =
+  (map2 (fun element1 element2 -> element1*element2) s1 s2)
+
+
+(* Pairs up the elements of s1 and s2 *)
+let zip (s1:'a stream) (s2:'b stream):('a * 'b) stream = 
+  (map2 (fun element1 element2 -> (element1,element2)) s1 s2)
+
+
+(* Returns a pair of streams (all first elements in first pair, etc) *)
+let unzip (s:('a * 'b) stream):('a stream * 'b stream) =
+  (* First element extracts the first value, second part of pair takes second *)
+  ((map (fun (element1,element2)-> element1) s),
+   (map (fun (element1,element2)-> element2) s))
+
+
+(* Calls f over every element of s (passing in the previous element) *)
+let rec fold (f:'a -> 'b -> 'b) (init_s:'b stream) (s:'a stream):'b stream =
+  (* Pair up the current element and the previous element using zip *) 
+  (map (fun (before,current) -> (f current before))
+       (zip (fby init_s (fun () -> fold f init_s s)) s))
+
+
+(* Returns stream containing maximum value in s (from s up to corresponding position) *)
+let running_max (s:int stream):int stream =
+  (* Calling a function that finds the current max *)
+  fold (fun current previous -> (if (current > previous) then current else previous))
+       (let (firstElement, restElements) = (split s) in firstElement)
+       s
+
+(* Returns a stream where every element is repeated twice *)
+let rec stutter (s:'a stream):'a stream =
+(* Only worry about doing the first element correctly, then the rest will
+   be done recursivly.  Splitting the stream, then using 2 fbys to extract
+   the first element twice *)
+  let (firstElement, restElements) = (split s) in
+    (fby firstElement (fun () -> (fby firstElement (fun () -> stutter restElements))))
+
+
+
+(*
+ * QUESTION 2
+ * 
+ *)
+
+(* Helper function recommonded in the homework *)
+let scalef n z =
+  (map (fun element -> n*.element) z)
+
+let addf z1 z2 =
+  (map2 (fun element1 element2 -> element1 +. element2) z1 z2)
+
+let rec psumsf z =
+  fby z (fun() ->
+                       (* Drop portion, as described in class *)
+  addf (psumsf z) (let (firstElement, restElements) = split z in restElements))
+
+
+(* Returns a stream of approximations to arctan x *)
+let rec arctan (z:float):float stream =
+  (* Partial sums but each time exponent increases by 2 and signs switch.
+     Only need odd exponents, but also need to keep track of term number for signs*)
+
+  psumsf (map (fun element ->
+		            let exponent = float_of_int (2*element + 1) in  (* Odd *)
+                            (((-1.0)**(float_of_int element)*. z**exponent) /. exponent))
+	       nats)
+ 
+
+(* Returns an approximation of pi using the formula: ¦Ð = 16 arctan (1/5) - 4 arctan (1/239) *)
+let pi ():float stream =
+  (addf (scalef 16.0 (arctan (1.0/.5.0)))
+        (scalef (-4.0) (arctan (1.0/.239.0))))
+
+
+(* Ues Newton's method to return stream given by (***) for function f *)
+let rec newton (f:float -> float) (df:float -> float) (guess:float):float stream =
+  (* Guess needs to occur first, so use a followby with a stream of guess.  The other input to fby
+     will be the rest of the calculated approximations.  *)
+  fby (cst guess)
+      (fun () -> (map (fun element -> element -. (f element)/.(df element)) (newton f df guess)))
+
+
+(* Approximates the derivative of a function based off an intial point *)
+let derivative (f:float -> float) (x:float):float stream =
+  (* Run the given formula with each counting numbers (excluding 0) *)
+  let (firstElement, countingNumbers) = split nats in 
+
+  (map (fun n -> ((f (x +. (1.0 /. (float_of_int n)))) -. (f x)) *. (float_of_int n)) countingNumbers)
+
+
+(* Returns a stream of elements in s where the difference between last element is epsilon *)
+let limit (epsilon:float) (s:float stream):float stream =
+   (* Filter out elements that don't have differences less than epsilon *)
+   let (firstElement, restElements) = split s in
+  (filter (fun current previous -> (abs_float (current -. previous)) < epsilon) restElements s)

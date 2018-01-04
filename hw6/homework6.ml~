@@ -1,0 +1,320 @@
+(* 
+
+HOMEWORK 6
+
+Name: Kristen Behrakis
+
+Email: kristen.behrakis@students.olin.edu
+
+Remarks, if any:
+
+*)
+
+
+(*
+ *
+ * Please fill in this file with your solutions and submit it
+ *
+ * The functions below are stubs that you should replace with your
+ * own implementation.
+ *
+ * PLEASE DO NOT CHANGE THE TYPES IN THE STUBS I GIVE YOU. 
+ * Doing so risks make it impossible to test your code.
+ *
+ * Always make sure you can #use this file before submitting it.
+ * Do that in a _fresh_ OCaml shell 
+ * It has to load without any errors.
+ *
+ *)
+
+
+
+(*************************************************************
+ * Binary trees
+ *
+ *)
+   
+type 'a bintree =
+  | Empty
+  | Node of 'a * 'a bintree * 'a bintree
+
+let sample = Node(10,Node(3,Node(7,Empty,Empty),
+                            Node(5,Empty,Empty)),
+                     Node(6,Node(99,Empty,
+                                 Node(66,Empty,Empty)),
+                          Empty))
+
+let pbt bt =
+  let rec loop bt depth = 
+    match bt with
+    | Empty -> ()
+    | Node(n,left,right) ->
+	(loop right (depth^"    ");
+         print_endline (depth^(string_of_int n));
+         loop left (depth^"    ")) in
+  loop bt ""
+
+
+
+
+(*
+ * QUESTION 1
+ *
+ *)
+
+
+(* Returns the number of nodes in the tree *)
+let rec size (t:'a bintree):int =
+    match t with
+     | Empty -> 0              (* Add 1 for each node seen *)
+     | Node(node,left,right) -> 1 + size(left) + size(right)
+
+
+(* Returns the height of a binary tree *)
+let rec height (t:'a bintree):int = 
+    match t with
+     | Empty -> 0               (* Check if left or right tree is bigger *)
+     | Node(node,left,right) -> if ((height left) > (height right))
+                                  then 1 + (height left)
+                                else
+                                  1 + (height right)
+
+(* Returns the sum of the values at the nodes *)
+let rec sum (t:int bintree):int = 
+    match t with
+     | Empty -> 0              (* Add the value of each node *)
+     | Node(node,left,right) -> node + sum(left) + sum(right)
+
+
+(* Returns a list of all the leaves of the tree *)
+let rec fringe (t:'a bintree):'a list = 
+    match t with
+     | Empty -> []             
+     | Node(node,left,right) -> let leftFringe =  (fringe left) in
+                                let rightFringe = (fringe right) in
+
+                                (* If the left and right fringes are both empty *)
+                                if ((leftFringe = []) && (rightFringe = []))
+                                  then [node]
+                                else
+                                  leftFringe@rightFringe
+
+
+(* Returns a new tree with every node transformed by function f *)
+let rec map (f:'a -> 'b) (t:'a bintree):'b bintree = 
+    match t with
+     | Empty -> Empty            
+     | Node(node,left,right) -> Node((f node),(map f left), (map f right)) 
+
+
+(* Fold function - applies function f to the root of tree *)
+let rec fold (f:'a -> 'b -> 'b -> 'b) (t:'a bintree) (b:'b):'b = 
+    match t with
+     | Empty -> b           
+     | Node(node,left,right) -> (f node (fold f left b) (fold f right b))
+
+
+
+(* Lists value of a node BEFORE the value of the nodes of its subtrees *)
+let rec preorder (t:'a bintree):'a list =
+    fold (fun node left right -> [node]@left@right) t []
+
+
+(* Lists the value of a node AFTER the values of its subtrees *)
+let rec postorder (t:'a bintree):'a list =
+   fold (fun node left right -> left@right@[node]) t []
+
+
+(* Lists the value of a node BEFORE the values of its right tree but AFTER the valuess of its left tree *)
+let rec inorder (t:'a bintree):'a list =
+     fold (fun node left right -> left@[node]@right) t []
+
+
+
+(*
+ *  QUESTION 2 
+ *
+ *)
+
+(* Returns a new binary search tree with value x inserted *)
+let rec bst_insert (t:'a bintree) (x:'a):'a bintree = 
+    match t with
+     | Empty -> Node(x, Empty, Empty)          
+     | Node(node,left,right) -> if (x < node)  (* Add to left side of tree *)
+                                  then Node(node, (bst_insert left x), right)
+                                else if (x > node)
+                                  then Node(node, left, (bst_insert right x))
+                                else 
+                                  failwith "Value already in the tree."
+
+
+(* Checks if value v is in the BST, taking advantage of BST properties *)
+let rec bst_lookup (t:'a bintree) (x:'a):bool =
+    match t with
+     | Empty -> false         
+     | Node(node,left,right) -> if (x < node)  (* Check the left side of tree *)
+                                  then (bst_lookup left x)
+                                else if (x > node)
+                                  then (bst_lookup right x)
+                                else  (* Equal to case *) 
+                                  true
+
+
+(* Takes a binary tree and returns a binary search tree w/ the same nodes *)
+let rec bstify (t:'a bintree):'a bintree =
+  (* Get list of all the nodes in the tree *)
+  let listOfNodes = inorder t in 
+
+  (* For each element in the node list, insert it into the BST *)
+  List.fold_right (fun nodeValue res -> (bst_insert res nodeValue)) listOfNodes Empty
+
+
+(* Tree rotation for an AVL tree - left rotation *)
+let rotate_left (t:'a bintree):'a bintree = 
+    match t with
+     | Empty -> Empty         
+     | Node(node,left,right) ->
+
+    match right with
+     | Empty -> Empty                       (* The right subtree's left side becomes the left subtree's right side *)
+     | Node(nodeRight,leftRight,rightRight) -> Node(nodeRight,Node(node,left,leftRight),rightRight)
+
+
+(* Tree rotation for an AVL tree - right rotation *)
+let rotate_right (t:'a bintree):'a bintree = 
+    match t with
+     | Empty -> Empty         
+     | Node(node,left,right) ->
+
+    match left with
+     | Empty -> Empty                       (* The left subtree's right side becomes the right subtree's left side *)
+     | Node(nodeLeft,leftLeft,rightLeft) -> Node(nodeLeft, leftLeft, Node(node,rightLeft,right))
+
+
+let rec makeAVL aBST =
+   match aBST with
+     | Empty -> Empty        
+     | Node(node,left,right) -> 
+                     let anAVL = Node(node,(makeAVL left),(makeAVL right)) in  
+
+                     (* If left heavy *)
+                     if (((height left) - (height right)) > 1)
+                       then (rotate_right anAVL)
+
+                     (* If right heavy *)
+                     else if (((height right) - (height left)) > 1)
+                       then (rotate_left anAVL)
+
+                     (* If already AVL *)
+                     else 
+                       anAVL
+		       
+
+		   
+(* Returns an AVL tree with value x inserted *)
+let avl_insert (t:'a bintree) (x:'a):'a bintree =
+  let bst = (bst_insert t x) in
+  (makeAVL bst)
+
+(* let avl_insert (t:'a bintree) (x:'a):'a bintree =
+  let bst = (bst_insert t x) in
+
+  (* Ensure that tree is AVL *)
+   match bst with
+     | Empty -> Empty        
+     | Node(node,left,right) ->
+
+   (* If the right side of the tree is too tall *)
+  if (((height right) - (height left)) > 1)
+     then begin
+
+       match right with
+         | Empty -> Empty       
+         | Node(nodeRight,leftRight,rightRight) ->
+
+     (* If the left side is causing it too be too tall, then rotating it once will not balance it *)
+     if (((height leftRight) - (height rightRight)) > 1)
+         then (rotate_left (rotate_left bst))
+     else
+         (rotate_left bst)
+     end
+
+   (* If the left side of the tree is too tall *)
+   else if (((height left) - (height right)) > 1)
+     then begin
+
+       match left with
+         | Empty -> Empty         
+         | Node(nodeLeft,leftLeft,rightLeft) ->
+
+     (* If the right side is causing it to be too tall *)
+     if (((height rightLeft) - (height leftLeft)) > 1)
+         then (rotate_right (rotate_right bst))
+     else
+         (rotate_right bst)
+     end
+	 
+   else
+     bst
+*)
+
+(* 
+ * QUESTION 3  (insert below when available)
+ *
+ *)
+
+type exp = 
+
+ (* PART A *)
+ | Num of int
+ | Ident of string
+ | Plus of exp * exp
+ | Times of exp * exp
+
+ (* PART B *)
+ | EQ of exp * exp
+ | GT of exp * exp
+ | And of exp * exp
+ | Not of exp
+ | If of exp * exp * exp
+
+ (* PART C *)
+ | Letval of string * exp * exp
+
+ (* PART D - BONUS *)
+ | Letfun of string * string * exp * exp
+ | Letrecfun of string * string * exp * exp
+ | App of string * exp
+
+
+type 'a env = string -> 'a
+
+let update (env:'a env) (x:string) (v:'a):'a env = 
+  fun y -> if (y = x) then v else (env y)
+
+let init:int env = (fun x -> 0)
+
+let initF:(int -> int) env = (fun x -> failwith ("unknown function "^x))
+
+
+(* Takes an expression of constructors and an environment and evaluates the expression *)
+let rec eval (exp:exp) (env:int env):int = 
+  match exp with
+    | Num(arg)    -> arg
+    | Ident(arg)  -> (env arg)
+    | Plus  (val1,val2) ->  ((eval val1 env) + (eval val2 env))
+    | Times (val1,val2) ->  ((eval val1 env) * (eval val2 env))
+    | EQ (val1, val2) -> if ((eval val1 env) = (eval val2 env)) then 1 else 0
+    | GT (val1, val2) -> if ((eval val1 env) > (eval val2 env)) then 1 else 0
+    | And (val1, val2) -> if (((eval val1 env) != 0)&&((eval val2 env) != 0)) then 1 else 0
+    | Not (arg) -> if (not ((eval arg env) != 0)) then 1 else 0
+    | If (val1, val2, val3) -> if ((eval val1 env) != 0)
+                                 then (eval val2 env)
+                               else
+                                 (eval val3 env)
+    | Letval (x, val1, val2) -> (eval val2 (update env x (eval val1 env)))
+  (*  | _(exp)  -> failwith "not a valid constructor" *)
+
+
+let rec evalF (exp:exp) (env:int env) (fenv:(int -> int) env):int =
+  failwith "evalF not implemented"
